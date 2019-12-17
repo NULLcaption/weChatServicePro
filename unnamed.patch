@@ -1,0 +1,1402 @@
+Index: pom.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- pom.xml	(date 1552264894000)
++++ pom.xml	(date 1556241485000)
+@@ -102,7 +102,7 @@
+ 		<dependency>
+ 			<groupId>com.alibaba</groupId>
+ 			<artifactId>druid</artifactId>
+-			<version>1.0.28</version>
++			<version>1.0.29</version>
+ 		</dependency>
+ 		<!-- utils -->
+ 		<dependency>
+Index: src/main/java/com/cxg/weChat/core/shiro/RedisManager.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- src/main/java/com/cxg/weChat/core/shiro/RedisManager.java	(date 1552264894000)
++++ src/main/java/com/cxg/weChat/core/shiro/RedisManager.java	(date 1556241485000)
+@@ -17,20 +17,27 @@
+ public class RedisManager {
+ 
+     @Value("${spring.redis.host}")
+-    private String host = "127.0.0.1";
++    private String host;
+ 
+     @Value("${spring.redis.port}")
+-    private int port = 6379;
++    private int port;
+ 
+-    // 0 - never expire
+-    private int expire = 0;
++    @Value("${spring.redis.pool.max-active}")
++    private int maxActive;
+ 
+-    //timeout for jedis try to connect to redis server, not expire time! In milliseconds
++    @Value("${spring.redis.pool.max-idle}")
++    private int maxIdle;
++
++    @Value("${spring.redis.pool.min-idle}")
++    private int minIdle;
++
+     @Value("${spring.redis.timeout}")
+-    private int timeout = 0;
++    private int timeout;
+ 
+     @Value("${spring.redis.password}")
+-    private String password = "";
++    private String password;
++
++    private int expire = 0;
+ 
+     private static JedisPool jedisPool = null;
+ 
+Index: src/main/java/com/cxg/weChat/crm/controller/WeChatController.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- src/main/java/com/cxg/weChat/crm/controller/WeChatController.java	(date 1552264894000)
++++ src/main/java/com/cxg/weChat/crm/controller/WeChatController.java	(date 1556241485000)
+@@ -2,6 +2,10 @@
+ 
+ import com.cxg.weChat.core.utils.HttpUtil;
+ import com.cxg.weChat.core.utils.JSONUtils;
++import com.cxg.weChat.core.utils.MD5Utils;
++import com.cxg.weChat.core.utils.R;
++import com.cxg.weChat.crm.pojo.PromotionInfoDo;
++import com.cxg.weChat.crm.pojo.SkuDo;
+ import com.cxg.weChat.crm.pojo.WxAdminInfoDo;
+ import com.cxg.weChat.crm.pojo.WxUserInfoDo;
+ import com.cxg.weChat.crm.service.UserInfoService;
+@@ -14,6 +18,7 @@
+ import org.springframework.web.bind.annotation.RequestMapping;
+ import org.springframework.web.bind.annotation.ResponseBody;
+ 
++import java.util.ArrayList;
+ import java.util.List;
+ import java.util.Map;
+ 
+@@ -38,6 +43,67 @@
+     @Autowired
+     UserInfoService userInfoService;
+ 
++
++    /**
++     * 促销员登录
++     * @param username
++     * @param password
++     * @param openid
++     * @return
++     */
++    @RequestMapping("/login")
++    @ResponseBody
++    public String login(String username, String password, String openid) {
++        //密码MD5加密处理
++        try {
++            password = MD5Utils.md5Encry(password);
++        } catch (Exception e) {
++            e.printStackTrace();
++        }
++        //验证用户名是否存在
++        PromotionInfoDo promotionInfo = userInfoService.getPromotionInfoByLoginId(username);
++        String userId;
++        if (promotionInfo != null) {
++            //验证密码是否zhengque
++            if (!password.equals(promotionInfo.getPassword())){
++                return "error";
++            }
++            userId = promotionInfo.getId();
++        } else {
++            return "error";
++        }
++
++        return userId;
++    }
++
++    /**
++     * 获取sku品项
++     * @return
++     */
++    @RequestMapping("/sku")
++    @ResponseBody
++    public String getSkuList() {
++        List<SkuDo> skuDoList = userInfoService.getSkuList();
++        List<String> list = new ArrayList<String>();
++        if (skuDoList != null) {
++            for(SkuDo skuDo : skuDoList) {
++                String skuValue = skuDo.getSkuValue();
++                list.add(skuValue);
++            }
++        }
++        String json = JSONUtils.beanToJson(list);
++        return json;
++    }
++
++    /**
++     * 促销员签到
++     * @param address
++     * @param date
++     * @param openid
++     * @param avatarUrl
++     * @param nickName
++     * @return
++     */
+     @RequestMapping("/sigin")
+     @ResponseBody
+     public String userSigin(String address, String date, String openid, String avatarUrl, String nickName) {
+@@ -103,8 +169,6 @@
+     @RequestMapping("/adminCode")
+     @ResponseBody
+     public String checkAdminRole(String code, String openid) {
+-        logger.debug("验证码{}："+code);
+-        logger.debug("验证人的openid{}："+openid);
+         //获取后台数据中提前随机生成的验证码
+         int num  = userInfoService.checkAdminRole(code);
+         if (String.valueOf(num) != null) {
+Index: src/main/java/com/cxg/weChat/crm/controller/userInfoAdminController.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- src/main/java/com/cxg/weChat/crm/controller/userInfoAdminController.java	(date 1552264894000)
++++ src/main/java/com/cxg/weChat/crm/controller/userInfoAdminController.java	(date 1556241485000)
+@@ -1,9 +1,7 @@
+ package com.cxg.weChat.crm.controller;
+ 
+ import com.cxg.weChat.core.utils.JSONUtils;
+-import com.cxg.weChat.crm.pojo.PlanActivityDo;
+-import com.cxg.weChat.crm.pojo.UserInfoDo;
+-import com.cxg.weChat.crm.pojo.WxUserInfoDo;
++import com.cxg.weChat.crm.pojo.*;
+ import com.cxg.weChat.crm.service.UserInfoService;
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
+@@ -14,6 +12,11 @@
+ import org.springframework.web.bind.annotation.RequestMapping;
+ import org.springframework.web.bind.annotation.ResponseBody;
+ 
++import javax.xml.crypto.Data;
++import java.text.SimpleDateFormat;
++import java.util.ArrayList;
++import java.util.Arrays;
++import java.util.Date;
+ import java.util.List;
+ 
+ /**
+@@ -30,6 +33,176 @@
+     @Autowired
+     UserInfoService userInfoService;
+ 
++    /**
++     * 获取提报数量
++     * @param openid
++     * @param id
++     * @param userId
++     * @return
++     */
++    @GetMapping("/list")
++    @ResponseBody
++    public String getPromotionNumList(String openid,String id,String userId) {
++        PromotionNumDo promotionNumDo = new PromotionNumDo();
++        promotionNumDo.setOpenid(openid);
++        promotionNumDo.setPlanDetailId(id);
++        promotionNumDo.setUserId(userId);
++        List<PromotionNumDo> list = userInfoService.getPromotionNumList(promotionNumDo);
++        String json = JSONUtils.beanToJson(list);
++        return json;
++    }
++
++    /**
++     * 促销员提报数量
++     * @param id
++     * @param userId
++     * @param sku
++     * @param planKunnrId
++     * @param detailed
++     * @return
++     */
++    @GetMapping("/submitNum")
++    @ResponseBody
++    public String submitNum(String openid,String id,String userId,String sku,
++                            String planKunnrId,String detailed){
++        PromotionNumDo promotionNumDo = new PromotionNumDo();
++        promotionNumDo.setOpenid(openid);
++        promotionNumDo.setPlanDetailId(id);
++        promotionNumDo.setUserId(userId);
++        promotionNumDo.setKunnrId(planKunnrId);
++        Date date = new Date();
++        SimpleDateFormat fromat = new SimpleDateFormat("yyyy-MM-dd");
++        promotionNumDo.setSubDate(fromat.format(date));
++        String[] skus = sku.split("-");
++        promotionNumDo.setSkuId(skus[0]);
++        promotionNumDo.setSkuName(skus[1]);
++        promotionNumDo.setNum(detailed);
++        promotionNumDo.setUnit("箱");
++        int count;
++        count = userInfoService.getPromotionNumById(promotionNumDo);
++        if (count == 0) {
++            count = userInfoService.createPromotionNum(promotionNumDo);
++            if (count == 0) {
++                return "error";
++            }
++        } else {
++            return "error_1";
++        }
++
++        return "success";
++    }
++
++    /**
++     * 签到
++     * @param address
++     * @param date
++     * @param openid
++     * @param userId
++     * @param id
++     * @return
++     */
++    @GetMapping("/sigin")
++    @ResponseBody
++    public String sigin(String address,String date,String openid,String userId,String id) {
++        SiginDo siginDo = new SiginDo();
++        siginDo.setOpenid(openid);
++        siginDo.setPlanDetailId(id);
++        siginDo.setUserId(userId);
++        siginDo.setSignInAddress(address);
++        //签到时间为当前服务器的时间
++        Date date1 = new Date();
++        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm");
++        String siginDate = format.format(date1);
++        siginDo.setSignInTime(siginDate);
++        siginDo.setPhotoUrl("");
++        int count = userInfoService.createSiginInInfo(siginDo);
++        if (count==0) {
++            return "error";
++        }
++        return "success";
++    }
++
++    /**
++     * 签退
++     * @param address
++     * @param date
++     * @param openid
++     * @param userId
++     * @param id
++     * @return
++     */
++    @GetMapping("/siginOut")
++    @ResponseBody
++    public String siginOut(String address,String date,String openid,String userId,String id) {
++        SiginDo siginDo = new SiginDo();
++        siginDo.setOpenid(openid);
++        siginDo.setPlanDetailId(id);
++        siginDo.setUserId(userId);
++        siginDo.setSignOutAddress(address);
++        //签到时间为当前服务器的时间
++        Date date1 = new Date();
++        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm");
++        String siginDate = format.format(date1);
++        siginDo.setSignOutTime(siginDate);
++        siginDo.setPhotoUrl("");
++        int count = userInfoService.createSiginOutInfo(siginDo);
++        if (count==0) {
++            return "error";
++        }
++        return "success";
++    }
++
++    /**
++     * 检查创建好的活动状态
++     * @param id
++     * @return
++     */
++    @GetMapping("/kunnr")
++    @ResponseBody
++    public String getPlanForKunnrId(String id) {
++        PlanActivityDo planActivityDo = userInfoService.getPlanForKunnrId(id);
++        String json = JSONUtils.beanToJson(planActivityDo);
++        return json;
++    }
++
++    /**
++     * @Description 根据登录者的Id获取绑定的活动
++     * @Author xg.chen
++     * @Date 14:08 2019/4/24
++     **/
++    @GetMapping("/plans4userId")
++    @ResponseBody
++    public String getPlanActivityByUserIdList(String userId){
++        List<PlanActivityDo> planActivityList = userInfoService.getPlanActivityByUserIdList(userId);
++        List<PlanActivityDo> plans = new ArrayList<PlanActivityDo>();
++        if (planActivityList!=null) {
++            for(PlanActivityDo planActivity : planActivityList) {
++                String[] planUserId=planActivity.getPlanUserId().split(", ");
++                boolean isContains = Arrays.asList(planUserId).contains(userId);
++                if(isContains) {
++                    PlanActivityDo p = new PlanActivityDo();
++                    p.setId(planActivity.getId());
++                    p.setPlanId(planActivity.getPlanId());
++                    p.setUserId(planActivity.getUserId());
++                    p.setPlanTitle(planActivity.getPlanTitle());
++                    p.setPlanAddress(planActivity.getPlanAddress());
++                    p.setPlanType(planActivity.getPlanType());
++                    String[] string = planActivity.getPlanPhotoUrl().split(",");
++                    p.setPlanPhotoUrl(string[0]);
++
++                    plans.add(p);
++                }
++            }
++        }
++        String json = JSONUtils.beanToJson(plans);
++        return json;
++    }
++
++    /**
++     * @Description 保护你参加活动的用户
++     * @Author xg.chen
++     * @Date 13:57 2019/4/24
++     **/
+     @GetMapping("/userInfo")
+     @ResponseBody
+     public String creatWxUserInfo(String openId, String avatarUrl, String nickName, String id) {
+@@ -50,6 +223,11 @@
+         return "success";
+     }
+ 
++    /**
++     * @Description 获取参加的活动列表
++     * @Author xg.chen
++     * @Date 13:56 2019/4/24
++     **/
+     @GetMapping("/plans")
+     @ResponseBody
+     public String getPlanActivityList(String openId) {
+@@ -58,11 +236,18 @@
+         return json;
+     }
+ 
++    /**
++     * 扫码获取活动详细
++     * @param QRCode
++     * @return
++     */
+     @GetMapping("/plan")
+     @ResponseBody
+-    public  String getPlanActivityById(String QRCode) {
++    public String getPlanActivityById(String QRCode) {
++        logger.debug("scan QRCode:"+QRCode);
+         //处理获取到的二维码
+         String[] strs = QRCode.split("-");
++        logger.debug("QRCode:"+strs);
+         String id = strs[0].toString();
+         String planId = strs[1].toString();
+         //从后台获取数据
+Index: src/main/java/com/cxg/weChat/crm/controller/weChatAdminController.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- src/main/java/com/cxg/weChat/crm/controller/weChatAdminController.java	(date 1552264894000)
++++ src/main/java/com/cxg/weChat/crm/controller/weChatAdminController.java	(date 1556241485000)
+@@ -179,13 +179,15 @@
+         wxUserInfoDo.setOpenId(scanCodeInfo);
+         wxUserInfoDo.setActivityId(planId);
+         String status = userInfoService.findUserInfoStatus(wxUserInfoDo);
++        if (null!=status) {
+-        if (status.equals("N")){
+-            int num = userInfoService.updateUserInfoStatus(wxUserInfoDo);
+-            if (num == 0) {
++            if (status.equals("N")){
++                int num = userInfoService.updateUserInfoStatus(wxUserInfoDo);
++                if (num == 0) {
+-                return "error";//用户已领取
++                    return "error";
+-            }
+-        }
++                }
++            }
+-        return "success";//用户未领取
++        }
++        return "success";
+     }
+ 
+     /**
+Index: src/main/java/com/cxg/weChat/crm/mapper/UserInfoMapper.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- src/main/java/com/cxg/weChat/crm/mapper/UserInfoMapper.java	(date 1552264894000)
++++ src/main/java/com/cxg/weChat/crm/mapper/UserInfoMapper.java	(date 1556241485000)
+@@ -39,4 +39,22 @@
+     int getUserInfoCountByPlanId(String planId);
+ 
+     String getWxUserInfoById4Status(WxUserInfoDo wxUserInfoDo);
++
++    List<SkuDo> getSkuList();
++
++    PromotionInfoDo getPromotionInfoByLoginId(String username);
++
++    List<PlanActivityDo> getPlanActivityByUserIdList(String userId);
++
++    PlanActivityDo getPlanForKunnrId(String id);
++
++    void createSiginInInfo(SiginDo siginDo);
++
++    void createSiginOutInfo(SiginDo siginDo);
++
++    void createPromotionNum(PromotionNumDo promotionNumDo);
++
++    int getPromotionNumById(PromotionNumDo promotionNumDo);
++
++    List<PromotionNumDo> getPromotionNumList(PromotionNumDo promotionNumDo);
+ }
+Index: src/main/java/com/cxg/weChat/crm/pojo/PlanActivityDo.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- src/main/java/com/cxg/weChat/crm/pojo/PlanActivityDo.java	(date 1552264894000)
++++ src/main/java/com/cxg/weChat/crm/pojo/PlanActivityDo.java	(date 1556241485000)
+@@ -1,6 +1,7 @@
+ package com.cxg.weChat.crm.pojo;
+ 
+ import java.io.Serializable;
++import java.util.Arrays;
+ 
+ /**
+ * @Description:    推广活动实体类
+@@ -32,7 +33,106 @@
+ 	private String avatarUrl;
+ 	private String activityId;
+ 	private String status;
++	private String planSiginDate;//考勤签到时间
++	private String planSiginoutDate;//考勤签退时间
++	private String planUserId;//考勤人员Id
++	private String planUserName;
++	private String planKunnrId;//经销商ID
++	private String planKunnrName;//经销商名称
++	private String planState;//活动类型（SP促销/CP品牌）
++	private String planChannel;//	渠道类型
++	private String planType;//状态（正常：Y；关闭：N）
++	private String planCreateDate;// 活动创建时间
++	private String channelName;
+ 
++	public String getPlanSiginDate() {
++		return planSiginDate;
++	}
++
++	public void setPlanSiginDate(String planSiginDate) {
++		this.planSiginDate = planSiginDate;
++	}
++
++	public String getPlanSiginoutDate() {
++		return planSiginoutDate;
++	}
++
++	public void setPlanSiginoutDate(String planSiginoutDate) {
++		this.planSiginoutDate = planSiginoutDate;
++	}
++
++	public String getPlanUserId() {
++		return planUserId;
++	}
++
++	public void setPlanUserId(String planUserId) {
++		this.planUserId = planUserId;
++	}
++
++	public String getPlanUserName() {
++		return planUserName;
++	}
++
++	public void setPlanUserName(String planUserName) {
++		this.planUserName = planUserName;
++	}
++
++	public String getPlanKunnrId() {
++		return planKunnrId;
++	}
++
++	public void setPlanKunnrId(String planKunnrId) {
++		this.planKunnrId = planKunnrId;
++	}
++
++	public String getPlanKunnrName() {
++		return planKunnrName;
++	}
++
++	public void setPlanKunnrName(String planKunnrName) {
++		this.planKunnrName = planKunnrName;
++	}
++
++	public String getPlanState() {
++		return planState;
++	}
++
++	public void setPlanState(String planState) {
++		this.planState = planState;
++	}
++
++	public String getPlanChannel() {
++		return planChannel;
++	}
++
++	public void setPlanChannel(String planChannel) {
++		this.planChannel = planChannel;
++	}
++
++	public String getPlanType() {
++		return planType;
++	}
++
++	public void setPlanType(String planType) {
++		this.planType = planType;
++	}
++
++	public String getPlanCreateDate() {
++		return planCreateDate;
++	}
++
++	public void setPlanCreateDate(String planCreateDate) {
++		this.planCreateDate = planCreateDate;
++	}
++
++	public String getChannelName() {
++		return channelName;
++	}
++
++	public void setChannelName(String channelName) {
++		this.channelName = channelName;
++	}
++
+ 	public String getActivityId() {
+ 		return activityId;
+ 	}
+@@ -183,6 +283,23 @@
+ 				", planExplain='" + planExplain + '\'' +
+ 				", planGetExplain='" + planGetExplain + '\'' +
+ 				", planQrcodeUrl='" + planQrcodeUrl + '\'' +
++				", urls=" + Arrays.toString(urls) +
++				", openId='" + openId + '\'' +
++				", nickName='" + nickName + '\'' +
++				", avatarUrl='" + avatarUrl + '\'' +
++				", activityId='" + activityId + '\'' +
++				", status='" + status + '\'' +
++				", planSiginDate='" + planSiginDate + '\'' +
++				", planSiginoutDate='" + planSiginoutDate + '\'' +
++				", planUserId='" + planUserId + '\'' +
++				", planUserName='" + planUserName + '\'' +
++				", planKunnrId='" + planKunnrId + '\'' +
++				", planKunnrName='" + planKunnrName + '\'' +
++				", planState='" + planState + '\'' +
++				", planChannel='" + planChannel + '\'' +
++				", planType='" + planType + '\'' +
++				", planCreateDate='" + planCreateDate + '\'' +
++				", channelName='" + channelName + '\'' +
+ 				'}';
+ 	}
+ }
+Index: src/main/java/com/cxg/weChat/crm/pojo/PromotionInfoDo.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- src/main/java/com/cxg/weChat/crm/pojo/PromotionInfoDo.java	(date 1556241485000)
++++ src/main/java/com/cxg/weChat/crm/pojo/PromotionInfoDo.java	(date 1556241485000)
+@@ -0,0 +1,149 @@
++package com.cxg.weChat.crm.pojo;
++
++import java.io.Serializable;
++
++/**
++ * @Description 促销员用户
++ * @Author xg.chen
++ * @Date 13:11 2019/4/24
++ **/
++
++public class PromotionInfoDo implements Serializable {
++
++    private String id;
++    private String loginId;
++    private String orgId;
++    private String orgName;
++    private String userName;
++    private String sex;
++    private String mobile;
++    private String idCard;
++    private String bankCard;
++    private String userRole;
++    private String state;
++    private String password;
++    private String createDate;
++
++    public String getId() {
++        return id;
++    }
++
++    public void setId(String id) {
++        this.id = id;
++    }
++
++    public String getLoginId() {
++        return loginId;
++    }
++
++    public void setLoginId(String loginId) {
++        this.loginId = loginId;
++    }
++
++    public String getOrgId() {
++        return orgId;
++    }
++
++    public void setOrgId(String orgId) {
++        this.orgId = orgId;
++    }
++
++    public String getOrgName() {
++        return orgName;
++    }
++
++    public void setOrgName(String orgName) {
++        this.orgName = orgName;
++    }
++
++    public String getUserName() {
++        return userName;
++    }
++
++    public void setUserName(String userName) {
++        this.userName = userName;
++    }
++
++    public String getSex() {
++        return sex;
++    }
++
++    public void setSex(String sex) {
++        this.sex = sex;
++    }
++
++    public String getMobile() {
++        return mobile;
++    }
++
++    public void setMobile(String mobile) {
++        this.mobile = mobile;
++    }
++
++    public String getIdCard() {
++        return idCard;
++    }
++
++    public void setIdCard(String idCard) {
++        this.idCard = idCard;
++    }
++
++    public String getBankCard() {
++        return bankCard;
++    }
++
++    public void setBankCard(String bankCard) {
++        this.bankCard = bankCard;
++    }
++
++    public String getUserRole() {
++        return userRole;
++    }
++
++    public void setUserRole(String userRole) {
++        this.userRole = userRole;
++    }
++
++    public String getState() {
++        return state;
++    }
++
++    public void setState(String state) {
++        this.state = state;
++    }
++
++    public String getPassword() {
++        return password;
++    }
++
++    public void setPassword(String password) {
++        this.password = password;
++    }
++
++    public String getCreateDate() {
++        return createDate;
++    }
++
++    public void setCreateDate(String createDate) {
++        this.createDate = createDate;
++    }
++
++    @Override
++    public String toString() {
++        return "PromotionInfoDo{" +
++                "id='" + id + '\'' +
++                ", loginId='" + loginId + '\'' +
++                ", orgId='" + orgId + '\'' +
++                ", orgName='" + orgName + '\'' +
++                ", userName='" + userName + '\'' +
++                ", sex='" + sex + '\'' +
++                ", mobile='" + mobile + '\'' +
++                ", idCard='" + idCard + '\'' +
++                ", bankCard='" + bankCard + '\'' +
++                ", userRole='" + userRole + '\'' +
++                ", state='" + state + '\'' +
++                ", password='" + password + '\'' +
++                ", createDate='" + createDate + '\'' +
++                '}';
++    }
++}
+Index: src/main/java/com/cxg/weChat/crm/pojo/PromotionNumDo.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- src/main/java/com/cxg/weChat/crm/pojo/PromotionNumDo.java	(date 1556241485000)
++++ src/main/java/com/cxg/weChat/crm/pojo/PromotionNumDo.java	(date 1556241485000)
+@@ -0,0 +1,109 @@
++package com.cxg.weChat.crm.pojo;
++
++import java.io.Serializable;
++
++/**
++ * @Description 促销员提报数量之实体类
++ * @Author xg.chen
++ * @Date 14:15 2019/4/25
++ **/
++
++public class PromotionNumDo implements Serializable{
++
++    private String openid;
++    private String planDetailId;
++    private String userId;
++    private String kunnrId;
++    private String skuId;
++    private String skuName;
++    private String num;
++    private String unit;
++    private String subDate;
++
++    public String getOpenid() {
++        return openid;
++    }
++
++    public void setOpenid(String openid) {
++        this.openid = openid;
++    }
++
++    public String getPlanDetailId() {
++        return planDetailId;
++    }
++
++    public void setPlanDetailId(String planDetailId) {
++        this.planDetailId = planDetailId;
++    }
++
++    public String getUserId() {
++        return userId;
++    }
++
++    public void setUserId(String userId) {
++        this.userId = userId;
++    }
++
++    public String getKunnrId() {
++        return kunnrId;
++    }
++
++    public void setKunnrId(String kunnrId) {
++        this.kunnrId = kunnrId;
++    }
++
++    public String getSkuId() {
++        return skuId;
++    }
++
++    public void setSkuId(String skuId) {
++        this.skuId = skuId;
++    }
++
++    public String getSkuName() {
++        return skuName;
++    }
++
++    public void setSkuName(String skuName) {
++        this.skuName = skuName;
++    }
++
++    public String getNum() {
++        return num;
++    }
++
++    public void setNum(String num) {
++        this.num = num;
++    }
++
++    public String getUnit() {
++        return unit;
++    }
++
++    public void setUnit(String unit) {
++        this.unit = unit;
++    }
++
++    public String getSubDate() {
++        return subDate;
++    }
++
++    public void setSubDate(String subDate) {
++        this.subDate = subDate;
++    }
++
++    @Override
++    public String toString() {
++        return "PromotionNumDo{" +
++                "openid='" + openid + '\'' +
++                ", planDetailId='" + planDetailId + '\'' +
++                ", userId='" + userId + '\'' +
++                ", kunnrId='" + kunnrId + '\'' +
++                ", skuId='" + skuId + '\'' +
++                ", skuName='" + skuName + '\'' +
++                ", num='" + num + '\'' +
++                ", unit='" + unit + '\'' +
++                ", subDate='" + subDate + '\'' +
++                '}';
++    }
++}
+Index: src/main/java/com/cxg/weChat/crm/pojo/SiginDo.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- src/main/java/com/cxg/weChat/crm/pojo/SiginDo.java	(date 1556241485000)
++++ src/main/java/com/cxg/weChat/crm/pojo/SiginDo.java	(date 1556241485000)
+@@ -0,0 +1,99 @@
++package com.cxg.weChat.crm.pojo;
++
++import java.io.Serializable;
++
++/**
++ * @Description 签到签退实体类
++ * @Author xg.chen
++ * @Date 10:05 2019/4/25
++ **/
++
++public class SiginDo implements Serializable {
++
++    private String openid;
++    private String planDetailId;
++    private String userId;
++    private String signInTime;
++    private String signInAddress;
++    private String signOutTime;
++    private String signOutAddress;
++    private String photoUrl;
++
++    public String getOpenid() {
++        return openid;
++    }
++
++    public void setOpenid(String openid) {
++        this.openid = openid;
++    }
++
++    public String getPlanDetailId() {
++        return planDetailId;
++    }
++
++    public void setPlanDetailId(String planDetailId) {
++        this.planDetailId = planDetailId;
++    }
++
++    public String getUserId() {
++        return userId;
++    }
++
++    public void setUserId(String userId) {
++        this.userId = userId;
++    }
++
++    public String getSignInTime() {
++        return signInTime;
++    }
++
++    public void setSignInTime(String signInTime) {
++        this.signInTime = signInTime;
++    }
++
++    public String getSignInAddress() {
++        return signInAddress;
++    }
++
++    public void setSignInAddress(String signInAddress) {
++        this.signInAddress = signInAddress;
++    }
++
++    public String getSignOutTime() {
++        return signOutTime;
++    }
++
++    public void setSignOutTime(String signOutTime) {
++        this.signOutTime = signOutTime;
++    }
++
++    public String getSignOutAddress() {
++        return signOutAddress;
++    }
++
++    public void setSignOutAddress(String signOutAddress) {
++        this.signOutAddress = signOutAddress;
++    }
++
++    public String getPhotoUrl() {
++        return photoUrl;
++    }
++
++    public void setPhotoUrl(String photoUrl) {
++        this.photoUrl = photoUrl;
++    }
++
++    @Override
++    public String toString() {
++        return "SiginDo{" +
++                "openid='" + openid + '\'' +
++                ", planDetailId='" + planDetailId + '\'' +
++                ", userId='" + userId + '\'' +
++                ", signInTime='" + signInTime + '\'' +
++                ", signInAddress='" + signInAddress + '\'' +
++                ", signOutTime='" + signOutTime + '\'' +
++                ", signOutAddress='" + signOutAddress + '\'' +
++                ", photoUrl='" + photoUrl + '\'' +
++                '}';
++    }
++}
+Index: src/main/java/com/cxg/weChat/crm/pojo/SkuDo.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- src/main/java/com/cxg/weChat/crm/pojo/SkuDo.java	(date 1556241485000)
++++ src/main/java/com/cxg/weChat/crm/pojo/SkuDo.java	(date 1556241485000)
+@@ -0,0 +1,52 @@
++package com.cxg.weChat.crm.pojo;
++
++import java.io.Serializable;
++import java.util.Arrays;
++
++/**
++ * @Description SKU实体类
++ * @Author xg.chen
++ * @Date 13:33 2019/4/2
++**/
++public class SkuDo implements Serializable {
++
++    private Long skuId;
++
++    private String skuName;
++
++    private String skuValue;
++
++    public String getSkuValue() {
++        return skuValue;
++    }
++
++    public void setSkuValue(String skuValue) {
++        this.skuValue = skuValue;
++    }
++
++    public String getSkuName() {
++        return skuName;
++    }
++
++    public void setSkuName(String skuName) {
++        this.skuName = skuName;
++    }
++
++
++    public Long getSkuId() {
++        return skuId;
++    }
++
++    public void setSkuId(Long skuId) {
++        this.skuId = skuId;
++    }
++
++    @Override
++    public String toString() {
++        return "SkuDo{" +
++                "skuId=" + skuId +
++                ", skuName='" + skuName + '\'' +
++                ", skuValue=" + skuValue +
++                '}';
++    }
++}
+Index: src/main/java/com/cxg/weChat/crm/service/UserInfoService.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- src/main/java/com/cxg/weChat/crm/service/UserInfoService.java	(date 1552264894000)
++++ src/main/java/com/cxg/weChat/crm/service/UserInfoService.java	(date 1556241485000)
+@@ -39,4 +39,22 @@
+     int getUserInfoCountByPlanId(String planId);
+ 
+     String getWxUserInfoById4Status(WxUserInfoDo wxUserInfoDo);
++
++    List<SkuDo> getSkuList();
++
++    PromotionInfoDo getPromotionInfoByLoginId(String username);
++
++    List<PlanActivityDo> getPlanActivityByUserIdList(String userId);
++
++    PlanActivityDo getPlanForKunnrId(String id);
++
++    int createSiginInInfo(SiginDo siginDo);
++
++    int createSiginOutInfo(SiginDo siginDo);
++
++    int createPromotionNum(PromotionNumDo promotionNumDo);
++
++    int getPromotionNumById(PromotionNumDo promotionNumDo);
++
++    List<PromotionNumDo> getPromotionNumList(PromotionNumDo promotionNumDo);
+ }
+Index: src/main/java/com/cxg/weChat/crm/service/impl/UserInfoServiceImpl.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- src/main/java/com/cxg/weChat/crm/service/impl/UserInfoServiceImpl.java	(date 1552264894000)
++++ src/main/java/com/cxg/weChat/crm/service/impl/UserInfoServiceImpl.java	(date 1556241485000)
+@@ -149,4 +149,97 @@
+         }
+         return null;
+     }
++
++    @Override
++    public List<SkuDo> getSkuList() {
++        try {
++            return userInfoMapper.getSkuList();
++        } catch (Exception e) {
++            e.printStackTrace();
++        }
++        return null;
++    }
++
++    @Override
++    public PromotionInfoDo getPromotionInfoByLoginId(String username) {
++        try {
++            return userInfoMapper.getPromotionInfoByLoginId(username);
++        } catch (Exception e) {
++            e.printStackTrace();
++        }
++        return null;
++    }
++
++    @Override
++    public List<PlanActivityDo> getPlanActivityByUserIdList(String userId) {
++        try {
++            return userInfoMapper.getPlanActivityByUserIdList(userId);
++        } catch (Exception e) {
++            e.printStackTrace();
++        }
++        return null;
++    }
++
++    @Override
++    public PlanActivityDo getPlanForKunnrId(String id) {
++        try {
++            return userInfoMapper.getPlanForKunnrId(id);
++        } catch (Exception e) {
++            e.printStackTrace();
++        }
++        return null;
++    }
++
++    @Override
++    public int createSiginInInfo(SiginDo siginDo) {
++        try {
++            userInfoMapper.createSiginInInfo(siginDo);
++            return 1;
++        } catch (Exception e) {
++            e.printStackTrace();
++        }
++        return 0;
++    }
++
++    @Override
++    public int createSiginOutInfo(SiginDo siginDo) {
++        try {
++            userInfoMapper.createSiginOutInfo(siginDo);
++            return 1;
++        } catch (Exception e) {
++            e.printStackTrace();
++        }
++        return 0;
++    }
++
++    @Override
++    public int createPromotionNum(PromotionNumDo promotionNumDo) {
++        try {
++            userInfoMapper.createPromotionNum(promotionNumDo);
++            return 1;
++        } catch (Exception e) {
++            e.printStackTrace();
++        }
++        return 0;
++    }
++
++    @Override
++    public int getPromotionNumById(PromotionNumDo promotionNumDo) {
++        try {
++            return userInfoMapper.getPromotionNumById(promotionNumDo);
++        } catch (Exception e) {
++            e.printStackTrace();
++        }
++        return 0;
++    }
++
++    @Override
++    public List<PromotionNumDo> getPromotionNumList(PromotionNumDo promotionNumDo) {
++        try {
++            return userInfoMapper.getPromotionNumList(promotionNumDo);
++        } catch (Exception e) {
++            e.printStackTrace();
++        }
++        return null;
++    }
+ }
+Index: src/main/resources/application.yml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- src/main/resources/application.yml	(date 1552264894000)
++++ src/main/resources/application.yml	(date 1556241485000)
+@@ -1,13 +1,13 @@
+ server:
+   context-path : /wx
+   session-timeout: 1800
+-#  port: 8099
++  port: 8099
+ #  https访问端口以及加密设置
+-  port: 443
+-  ssl:
+-        key-store: classpath:ssl.zjxpp.com.jks
+-        key-store-password: xpp2018xpp2018
+-        keyStoreType: JKS
++#  port: 443
++#  ssl:
++#        key-store: classpath:ssl.zjxpp.com.jks
++#        key-store-password: xpp2018xpp2018
++#        keyStoreType: JKS
+ logging:
+   level:
+     root: info
+@@ -33,17 +33,16 @@
+ #    driverClassName: com.mysql.jdbc.Driver
+ #    url: jdbc:mysql://127.0.0.1:3306/bootdotest?useUnicode=true&characterEncoding=utf8
+ #   oracle连接方式
+-#   oracle测试机连接方式
+-#    type: com.alibaba.druid.pool.DruidDataSource
+-#    driverClassName: oracle.jdbc.OracleDriver
+-#    url: jdbc:oracle:thin:osap/osap@10.0.5.16:1521:expdbtest
+-#    username: osap
+-#    password: osap
+     type: com.alibaba.druid.pool.DruidDataSource
+     driverClassName: oracle.jdbc.OracleDriver
+-    url: jdbc:oracle:thin:exp/exp123@10.100.0.10:1530:expora
+-    username: exp
+-    password: exp123
++    url: jdbc:oracle:thin:osap/osap@10.0.5.16:1521:expdbtest
++    username: osap
++    password: osap
++#    type: com.alibaba.druid.pool.DruidDataSource
++#    driverClassName: oracle.jdbc.OracleDriver
++#    url: jdbc:oracle:thin:exp/exp123@10.100.0.10:1530:expora
++#    username: exp
++#    password: exp123
+ 
+ #   druid连接池配置
+     initialSize: 1
+Index: src/main/resources/mybatis/userInfo/userInfoMapper.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- src/main/resources/mybatis/userInfo/userInfoMapper.xml	(date 1552264894000)
++++ src/main/resources/mybatis/userInfo/userInfoMapper.xml	(date 1556241485000)
+@@ -2,6 +2,101 @@
+ <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+ <mapper namespace="com.cxg.weChat.crm.mapper.UserInfoMapper">
+ 
++	<select id="getPromotionNumList" parameterType="com.cxg.weChat.crm.pojo.PromotionNumDo"
++			resultType="com.cxg.weChat.crm.pojo.PromotionNumDo">
++		SELECT t.sku_id skuId,
++				t.sku_name skuName,
++				t.num num,
++				t.unit unit,
++				t.sub_date subDate
++		FROM market.market_tb_promotion_num t
++		WHERE t.openid=#{openid} AND t.user_id=#{userId} AND t.plan_detail_id=#{planDetailId}
++	</select>
++
++	<select id="getPromotionNumById" parameterType="com.cxg.weChat.crm.pojo.PromotionNumDo"
++			resultType="java.lang.Integer">
++		SELECT COUNT(*) FROM market.market_tb_promotion_num t WHERE t.sku_id=#{skuId} AND t.sub_date=#{subDate}
++	</select>
++
++	<insert id="createPromotionNum" parameterType="com.cxg.weChat.crm.pojo.PromotionNumDo">
++		INSERT INTO market.market_tb_promotion_num
++		(id,openid,plan_detail_id,user_id,kunnr_id,sku_id,sku_name,num,unit,sub_date)
++		VALUES
++		(market.market_seq_promotion_num.nextval,#{openid},#{planDetailId},#{userId},#{kunnrId},#{skuId},#{skuName},#{num},#{unit},#{subDate})
++	</insert>
++
++	<insert id="createSiginInInfo" parameterType="com.cxg.weChat.crm.pojo.SiginDo">
++		INSERT INTO market.market_tb_promotion_sign_in
++			(id,openid,plan_detail_id,user_id,sign_in_time,sign_in_address,photo_url)
++		VALUES
++			(MARKET.MARKET_SEQ_PROMOTION_SIGN_IN.nextval,#{openid},#{planDetailId},#{userId},#{signInTime},#{signInAddress},#{photoUrl})
++	</insert>
++
++	<insert id="createSiginOutInfo" parameterType="com.cxg.weChat.crm.pojo.SiginDo">
++		INSERT INTO market.market_tb_promotion_sign_out
++			(id,openid,plan_detail_id,user_id,sign_out_time,sign_out_address,photo_url)
++		VALUES
++			(MARKET.MARKET_SEQ_PROMOTION_SIGN_OUT.nextval,#{openid},#{planDetailId},#{userId},#{signOutTime},#{signOutAddress},#{photoUrl})
++	</insert>
++
++	<select id="getPlanForKunnrId" parameterType="java.lang.String" resultType="com.cxg.weChat.crm.pojo.PlanActivityDo">
++		select  t.plan_kunnr_id planKunnrId,
++			       k.name1 planKunnrName
++		FROM market.market_tb_plan_activity t
++		left join crm.crm_tb_kunnr k on k.kunnr = t.plan_kunnr_id
++		WHERE t.id=#{id}
++	</select>
++
++	<select id="getPlanActivityByUserIdList"
++			resultType="com.cxg.weChat.crm.pojo.PlanActivityDo" parameterType="java.lang.String">
++		select distinct t.plan_id planId,
++			   t.user_id userId,
++			   p.id,
++			   p.plan_title planTitle,
++			   p.plan_address planAddress,
++			   case (p.plan_type)
++                 when 'N' then '关闭'
++                 when 'Y' then '正常'
++  		        		 end planType,
++			   p.plan_user_id planUserId,
++			   p.plan_photo_url planPhotoUrl
++		  from market.market_tb_plan_user t
++		 left join market.market_tb_plan_activity p on p.plan_id=t.plan_id
++		 where p.plan_type='Y' AND t.user_id = #{userId}
++	</select>
++
++	<select id="getPromotionInfoByLoginId"
++			resultType="com.cxg.weChat.crm.pojo.PromotionInfoDo" parameterType="java.lang.String">
++		select t.id        id,
++			   t.login_id  loginId,
++			   t.org_id    orgId,
++			   t.org_name  orgName,
++			   t.user_name userName,
++			   t.sex sex,
++			   t.mobile mobile,
++			   t.id_card idCard,
++			   t.bank_card bankCard,
++			   t.user_role userRole,
++			   t.state state,
++			   t.password password
++		  from market.market_tb_promotion_info t
++		 where 1 = 1 AND t.state=2 AND t.login_id=#{username}
++	</select>
++
++	<select id="getSkuList" resultType="com.cxg.weChat.crm.pojo.SkuDo">
++		select distinct s.sku_id as skuId,
++		s.sku_name as skuName,
++		(s.sku_id || '-' || s.sku_name) as skuValue
++		from crm.crm_tb_sku s
++		left join crm.crm_tb_cg c on c.sku_category_id = s.sku_category_id
++		left join crm.crm_tb_sku_unitcoefficient u on u.sku_id = s.sku_id
++		left join basis.basis_tb_materiel m on m.matnr = c.sap_groups_code
++		where s.sku_company = '1'
++		and s.product_type = '1'
++		and s.status = 'U'
++		order by s.sku_id
++	</select>
++
+ 	<insert id="creatWxAdminPhoto" parameterType="com.cxg.weChat.crm.pojo.WxPlanPhotoDo">
+ 		INSERT INTO market.markrt_wx_plan_photo
+ 		(OPENID,ACTIVITY_ID,PHOTO_URL,CREART_DATE)
+Index: src/main/resources/static/js/appjs/test.js
+===================================================================
+--- src/main/resources/static/js/appjs/test.js	(date 1552264894000)
++++ src/main/resources/static/js/appjs/test.js	(date 1552264894000)
+@@ -1,3 +0,0 @@
+-/**
+- * Created by Administrator on 2018/11/29.
+- */
+Index: src/test/java/com/cxg/weChat/WeChatApplicationTests.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- src/test/java/com/cxg/weChat/WeChatApplicationTests.java	(date 1552264894000)
++++ src/test/java/com/cxg/weChat/WeChatApplicationTests.java	(date 1556241485000)
+@@ -1,14 +1,18 @@
+ package com.cxg.weChat;
+ 
++import com.cxg.weChat.core.utils.JSONUtils;
++import com.cxg.weChat.crm.pojo.SkuDo;
+ import com.cxg.weChat.crm.pojo.TestDo;
+ import com.cxg.weChat.crm.pojo.TestDo2;
+ import com.cxg.weChat.crm.service.PlanActivitySrevice;
++import com.cxg.weChat.crm.service.UserInfoService;
+ import org.junit.Test;
+ import org.junit.runner.RunWith;
+ import org.springframework.beans.factory.annotation.Autowired;
+ import org.springframework.boot.test.context.SpringBootTest;
+ import org.springframework.test.context.junit4.SpringRunner;
+ 
++import java.util.ArrayList;
+ import java.util.List;
+ 
+ 
+@@ -19,7 +23,23 @@
+ 	@Autowired
+ 	PlanActivitySrevice planActivitySrevice;
+ 
++	@Autowired
++	UserInfoService userInfoService;
++
+ 	@Test
++	public void getSkuList() {
++		List<SkuDo> skuDoList = userInfoService.getSkuList();
++		List<String> list = new ArrayList<String>();
++		if (skuDoList != null) {
++			for(SkuDo skuDo : skuDoList) {
++				String skuValue = skuDo.getSkuValue();
++				list.add(skuValue);
++			}
++		}
++		System.out.println(list.toString());
++	}
++
++	//@Test
+ 	public void contextLoads() {
+ 		String detailId = "162546";
+ 		List<TestDo> list = planActivitySrevice.getItemIdList(detailId);

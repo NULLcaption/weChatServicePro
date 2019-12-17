@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cxg.weChat.crm.mapper.PlanActivityMapper">
+
+    <update id="updateIdCardZ" parameterType="com.cxg.weChat.crm.pojo.PromotionInfoDo">
+      UPDATE MARKET.MARKET_TB_PROMOTION_INFO t SET t.PIC_H=#{picH} WHERE t.OPEN_ID=#{openId}
+    </update>
+
+    <update id="updateIdCardF" parameterType="com.cxg.weChat.crm.pojo.PromotionInfoDo">
+      UPDATE MARKET.MARKET_TB_PROMOTION_INFO t SET t.PIC_G=#{picG} WHERE t.OPEN_ID=#{openId}
+    </update>
+
+    <select id="getPromotionInfoByOpenId" parameterType="java.lang.String" resultType="java.lang.Integer">
+        SELECT count(t.OPEN_ID) FROM MARKET.MARKET_TB_PROMOTION_INFO t WHERE t.OPEN_ID=#{openId}
+    </select>
+
+    <select id="getPromotionInfo" parameterType="java.lang.String" resultType="com.cxg.weChat.crm.pojo.PromotionInfoDo">
+        SELECT  t.ID id,
+                t.OPEN_ID openId,
+                t.USER_NAME userName,
+                t.SEX sex,
+                t.MOBILE mobile,
+                t.ID_CARD idCard,
+                t.USER_ROLE userRole
+        FROM MARKET.MARKET_TB_PROMOTION_INFO t WHERE t.OPEN_ID=#{openId}
+    </select>
+
+    <select id="getStoreByOpenId" parameterType="java.lang.String" resultType="com.cxg.weChat.crm.pojo.StoreDo">
+        SELECT  t.ID id,
+                t.CREATE_DATE ,
+                t.CUST_ID custId,
+                t.CUST_NAME custName,
+                t.KUNNR_ID kunnrId,
+                t.PLAN_DATE planDate,
+                t.PLAN_TITLE planTitle,
+                t.RAND_NUM randNum,
+                t.SAF_CODE safCode
+        FROM MARKET.MARKET_TB_STORE t
+        LEFT JOIN MARKET.MARKET_TB_PROMOTION_STORE p ON t.ID = p.store_id
+        WHERE p.OPENID=#{openId} AND p.STATUS='Y'
+    </select>
+
+    <select id="getStoreByCode" parameterType="java.lang.String" resultType="com.cxg.weChat.crm.pojo.StoreDo">
+        SELECT  t.ID id,
+                t.CREATE_DATE ,
+                t.CUST_ID custId,
+                t.CUST_NAME custName,
+                t.KUNNR_ID kunnrId,
+                t.PLAN_DATE planDate,
+                t.PLAN_TITLE planTitle,
+                t.RAND_NUM randNum,
+                t.SAF_CODE safCode
+        FROM MARKET.MARKET_TB_STORE t
+        WHERE t.RAND_NUM=#{code}
+    </select>
+
+    <select id="promotionStoreDo" parameterType="com.cxg.weChat.crm.pojo.PromotionStoreDo"
+            resultType="java.lang.Integer">
+        SELECT COUNT(*) FROM MARKET.MARKET_TB_PROMOTION_STORE t WHERE t.OPENID=#{openId} AND t.STORE_ID=#{storeId} AND t.STATUS='Y'
+    </select>
+
+    <update id="deleteStoreById" parameterType="com.cxg.weChat.crm.pojo.PromotionStoreDo">
+        UPDATE MARKET.MARKET_TB_PROMOTION_STORE t SET t.STATUS='N' WHERE t.OPENID=#{openId} AND t.STORE_ID=#{storeId}
+    </update>
+
+    <select id="getSkuList" parameterType="java.lang.String" resultType="com.cxg.weChat.crm.pojo.SkuDo">
+        select t.id,
+              t.sku_name skuName,
+              t.unit unit
+          from market.market_tb_promotion_sku t
+         where t.status = 'Y' AND t.BRAND=#{mark}
+    </select>
+
+    <select id="getDistributionData" parameterType="com.cxg.weChat.crm.pojo.PromotionNumDo"
+            resultType="com.cxg.weChat.crm.pojo.PromotionSkuNumDo">
+        SELECT t.id skuId,
+               t.sku_name skuName,
+               t.unit unit,
+               n.num num,
+               n.SUB_DATE subDate,
+               s.CUST_NAME custName
+        from MARKET.MARKET_TB_PROMOTION_NUM n
+        LEFT JOIN market.market_tb_promotion_sku t on n.SKU_ID = t.id
+        LEFT JOIN MARKET.MARKET_TB_STORE s on s.ID = n.store_id
+        WHERE n.OPENID=#{openid} and n.store_id=#{storeId} AND t.status = 'Y'
+    </select>
+
+    <select id="getDistributionCount" parameterType="com.cxg.weChat.crm.pojo.PromotionNumDo" resultType="java.lang.Integer">
+        SELECT count(*)
+        from MARKET.MARKET_TB_PROMOTION_NUM n
+         WHERE n.OPENID=#{openid} and n.store_id=#{storeId} AND n.SUB_DATE=#{subDate} AND n.SKU_ID=#{skuId}
+    </select>
+
+    <update id="updateDistribution" parameterType="com.cxg.weChat.crm.pojo.PromotionNumDo">
+        UPDATE MARKET.MARKET_TB_PROMOTION_NUM n
+        SET n.num=#{num}
+       WHERE n.OPENID=#{openid} and n.store_id=#{storeId} AND n.SUB_DATE=#{subDate} AND n.SKU_ID=#{skuId}
+    </update>
+
+    <select id="getInventoryData" parameterType="com.cxg.weChat.crm.pojo.PromotionNumKDo"
+            resultType="com.cxg.weChat.crm.pojo.PromotionSkuNumDo">
+        SELECT t.id skuId,
+        t.sku_name skuName,
+        t.unit unit,
+        n.NUMK num,
+        n.SUB_DATE subDate,
+        s.CUST_NAME custName
+        from MARKET.MARKET_TB_PROMOTION_NUMK n
+        LEFT JOIN market.market_tb_promotion_sku t on n.SKU_ID = t.id
+        LEFT JOIN MARKET.MARKET_TB_STORE s on s.ID = n.store_id
+        WHERE n.OPENID=#{openid} and n.store_id=#{storeId} AND t.status = 'Y'
+    </select>
+
+    <select id="getInventoryCount" parameterType="com.cxg.weChat.crm.pojo.PromotionNumKDo"
+            resultType="java.lang.Integer">
+        SELECT COUNT(*)
+        from MARKET.MARKET_TB_PROMOTION_NUMK n
+         WHERE n.OPENID=#{openid} and n.store_id=#{storeId} AND n.SUB_DATE=#{subDate} AND n.SKU_ID=#{skuId}
+    </select>
+
+    <update id="updateInventory" parameterType="com.cxg.weChat.crm.pojo.PromotionNumKDo">
+        UPDATE MARKET.MARKET_TB_PROMOTION_NUMK n
+        SET n.NUMK=#{num}
+        WHERE n.OPENID=#{openid} and n.store_id=#{storeId} AND n.SUB_DATE=#{subDate} AND n.SKU_ID=#{skuId}
+    </update>
+
+    <select id="getCompData" parameterType="com.cxg.weChat.crm.pojo.PromotionNumZDo"
+            resultType="com.cxg.weChat.crm.pojo.PromotionSkuNumDo">
+        SELECT t.id skuId,
+        t.sku_name skuName,
+        t.unit unit,
+        n.NUMZ num,
+        n.SUB_DATE subDate,
+        s.CUST_NAME custName
+        from MARKET.MARKET_TB_PROMOTION_NUMZ n
+        LEFT JOIN market.market_tb_promotion_sku t on n.SKU_ID = t.id
+        LEFT JOIN MARKET.MARKET_TB_STORE s on s.ID = n.store_id
+        WHERE n.OPENID=#{openid} and n.store_id=#{storeId} AND t.status = 'Y'
+    </select>
+
+    <select id="getComplimentaryCount" parameterType="com.cxg.weChat.crm.pojo.PromotionNumZDo"
+            resultType="java.lang.Integer">
+        SELECT count(*)
+        from MARKET.MARKET_TB_PROMOTION_NUMZ n
+        WHERE n.OPENID=#{openid} and n.store_id=#{storeId} AND n.SUB_DATE=#{subDate} AND n.SKU_ID=#{skuId}
+    </select>
+
+    <update id="updateComplimentary" parameterType="com.cxg.weChat.crm.pojo.PromotionNumZDo">
+        UPDATE MARKET.MARKET_TB_PROMOTION_NUMZ n
+        SET n.NUMZ=#{num}
+        WHERE n.OPENID=#{openid} and n.store_id=#{storeId} AND n.SUB_DATE=#{subDate} AND n.SKU_ID=#{skuId}
+    </update>
+
+    <update id="updateSiginByOpenId" parameterType="com.cxg.weChat.crm.pojo.SiginDo">
+        UPDATE MARKET.MARKET_TB_PROMOTION_SIGN_IN t
+        SET t.SIGN_OUT_TIME=#{signOutTime},t.SIGN_OUT_ADDRESS=#{signOutAddress},t.PHOTO_URL_O=#{photoUrlO}
+        WHERE t.OPENID=#{openid} AND t.STORE_ID=#{storeId}
+    </update>
+
+    <select id="getSignInData" parameterType="com.cxg.weChat.crm.pojo.SiginDo" resultType="com.cxg.weChat.crm.pojo.SiginDo">
+        SELECT t.SIGN_IN_TIME signInTime,
+              t.SIGN_IN_ADDRESS signInAddress,
+              t.PHOTO_URL photoUrl
+        FROM MARKET.MARKET_TB_PROMOTION_SIGN_IN t
+        WHERE t.OPENID=#{openid} AND t.status='I'
+    </select>
+
+    <select id="getSignOutData" parameterType="com.cxg.weChat.crm.pojo.SiginDo" resultType="com.cxg.weChat.crm.pojo.SiginDo">
+        SELECT t.SIGN_IN_TIME signInTime,
+              t.SIGN_IN_ADDRESS signInAddress,
+              t.PHOTO_URL photoUrl
+        FROM MARKET.MARKET_TB_PROMOTION_SIGN_IN t
+        WHERE t.OPENID=#{openid} AND t.status='O'
+    </select>
+
+    <select id="getPhotoData" parameterType="com.cxg.weChat.crm.pojo.PromotionStorePhotoDo"
+            resultType="com.cxg.weChat.crm.pojo.PromotionStorePhotoDo">
+        SELECT t.OPENID openId,
+              t.store_id stotrId,
+              t.pic_url picUrl,
+              t.SUB_DATE subDate,
+              s.CUST_NAME custName
+        FROM MARKET.MARKET_TB_PROMOTION_PHOTO t
+        LEFT JOIN MARKET.MARKET_TB_STORE s on s.ID = t.store_id
+        WHERE t.OPENID=#{openid} AND t.STORE_ID=#{storeId}
+    </select>
+
+</mapper>

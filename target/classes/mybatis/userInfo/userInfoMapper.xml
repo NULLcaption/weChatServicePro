@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cxg.weChat.crm.mapper.UserInfoMapper">
+
+	<select id="getUserInfoById" resultType="com.cxg.weChat.crm.pojo.UserInfoDo" parameterType="java.lang.Integer">
+		select t.login_id   as loginId,
+		t.mobile,
+		t.phone mobilephone,
+		t.email,
+		t.company,
+		t.user_state as userState,
+		t.user_id    as userId,
+		t.user_name  as userName,
+		t.org_id     as orgId
+		from basis.basis_vw_user_psw t
+		where t.user_id = #{id}
+	</select>
+	<select id="checkAdminRole" parameterType="java.lang.String" resultType="java.lang.Integer">
+		select t.id
+		from market.market_tb_plan_activity t where t.plan_code = #{code}
+	</select>
+	<select id="getSkuList" resultType="com.cxg.weChat.crm.pojo.SkuDo">
+		select distinct s.sku_id as skuId,
+		s.sku_name as skuName,
+		(s.sku_id || '-' || s.sku_name) as skuValue
+		from crm.crm_tb_sku s
+		left join crm.crm_tb_cg c on c.sku_category_id = s.sku_category_id
+		left join crm.crm_tb_sku_unitcoefficient u on u.sku_id = s.sku_id
+		left join basis.basis_tb_materiel m on m.matnr = c.sap_groups_code
+		where s.sku_company = '1'
+		and s.product_type = '1'
+		and s.status = 'U'
+		order by s.sku_id
+	</select>
+	<select id="getPromotionInfoByLoginId"
+			resultType="com.cxg.weChat.crm.pojo.PromotionInfoDo" parameterType="java.lang.String">
+		select t.id        id,
+		t.login_id  loginId,
+		t.org_id    orgId,
+		t.org_name  orgName,
+		t.user_name userName,
+		t.sex sex,
+		t.mobile mobile,
+		t.id_card idCard,
+		t.bank_card bankCard,
+		t.user_role userRole,
+		t.state state,
+		t.password password
+		from market.market_tb_promotion_info t
+		where 1 = 1 AND t.state=2 AND t.login_id=#{username}
+	</select>
+	<insert id="createSiginInInfo" parameterType="com.cxg.weChat.crm.pojo.SiginDo">
+		INSERT INTO market.market_tb_promotion_sign_in
+		(id,openid,plan_detail_id,user_id,sign_in_time,sign_in_address,photo_url)
+		VALUES
+		(MARKET.MARKET_SEQ_PROMOTION_SIGN_IN.nextval,#{openid},#{planDetailId},#{userId},#{signInTime},#{signInAddress},#{photoUrl})
+	</insert>
+	<insert id="createPromotionNum" parameterType="com.cxg.weChat.crm.pojo.PromotionNumDo">
+		INSERT INTO market.market_tb_promotion_num
+		(id,openid,plan_detail_id,user_id,kunnr_id,sku_id,sku_name,num,unit,sub_date)
+		VALUES
+		(market.market_seq_promotion_num.nextval,#{openid},#{planDetailId},#{userId},#{kunnrId},#{skuId},#{skuName},#{num},#{unit},#{subDate})
+	</insert>
+	<select id="getPromotionNumById" parameterType="com.cxg.weChat.crm.pojo.PromotionNumDo"
+			resultType="java.lang.Integer">
+		SELECT COUNT(*) FROM market.market_tb_promotion_num t WHERE t.sku_id=#{skuId} AND t.sub_date=#{subDate}
+	</select>
+	<select id="getPromotionNumList" parameterType="com.cxg.weChat.crm.pojo.PromotionNumDo"
+			resultType="com.cxg.weChat.crm.pojo.PromotionNumDo">
+		SELECT t.sku_id skuId,
+		t.sku_name skuName,
+		t.num num,
+		t.unit unit,
+		t.sub_date subDate
+		FROM market.market_tb_promotion_num t
+		WHERE t.openid=#{openid} AND t.user_id=#{userId} AND t.plan_detail_id=#{planDetailId}
+	</select>
+	<update id="updateSiginPhotoUrl" parameterType="com.cxg.weChat.crm.pojo.SiginDo">
+		UPDATE market.market_tb_promotion_sign_in t
+		set t.photo_url=#{photoUrl}
+		WHERE t.openid=#{openid} AND t.plan_detail_id=#{planDetailId} and t.user_id=#{userId}
+	</update>
+
+	<insert id="createSiginOutInfo" parameterType="com.cxg.weChat.crm.pojo.SiginDo">
+		INSERT INTO market.market_tb_promotion_sign_out
+		(id,openid,plan_detail_id,user_id,sign_out_time,sign_out_address,photo_url)
+		VALUES
+		(MARKET.MARKET_SEQ_PROMOTION_SIGN_OUT.nextval,#{openid},#{planDetailId},#{userId},#{signOutTime},#{signOutAddress},#{photoUrl})
+	</insert>
+
+	<update id="updateSiginOutPhotoUrl" parameterType="com.cxg.weChat.crm.pojo.SiginDo">
+		UPDATE market.market_tb_promotion_sign_out t
+		set t.photo_url=#{photoUrl}
+		WHERE t.openid=#{openid} AND t.plan_detail_id=#{planDetailId} and t.user_id=#{userId}
+	</update>
+</mapper>
