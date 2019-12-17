@@ -1,13 +1,7 @@
 server:
   context-path : /wx
   session-timeout: 1800
-#  port: 8099
-#  https访问端口以及加密设置
-  port: 444
-  ssl:
-    key-store: classpath:ssl.zjxpp.com.jks
-    key-store-password: 6bqqpf65m2y90
-    keyStoreType: JKS
+  port: 8099
 logging:
   level:
     root: info
@@ -37,9 +31,9 @@ spring:
   datasource:
     type: com.alibaba.druid.pool.DruidDataSource
     driverClassName: oracle.jdbc.OracleDriver
-    url: jdbc:oracle:thin:exp/exp123@10.100.0.10:1530:expora
-    username: exp
-    password: exp123
+    url: jdbc:oracle:thin:xxx/xxxx@xx.xx.xx.xx:xx:xxx
+    username: xxx
+    password: xxx
 #   druid连接池配置
     initialSize: 1
     minIdle: 10
