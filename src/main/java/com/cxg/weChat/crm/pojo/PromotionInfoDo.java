@@ -19,7 +19,7 @@ public class PromotionInfoDo implements Serializable {
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "proInfoSeq")
     @SequenceGenerator(name = "proInfoSeq", initialValue = 1, allocationSize = 1, sequenceName = "MARKET.MARKET_SEQ_PROMOTION_INFO")
     private Long id;//id
-    @Column(name = "OPEN_ID")
+    @Column(name = "OPEN_ID", updatable=false, unique=true)
     private String openId;//openid
     @Column(name = "USER_NAME")
     private String userName;//姓名
@@ -41,6 +41,8 @@ public class PromotionInfoDo implements Serializable {
     private String picH;//身份证头像面
     @Column(name = "pic_g")
     private String picG;//身份证国徽面
+    @Column(name = "status")
+    private String status;//在职离职状态: Y:在职  N：离职
 
     public String getNickName() {
         return nickName;
@@ -138,5 +140,11 @@ public class PromotionInfoDo implements Serializable {
         this.createDate = createDate;
     }
 
+    public String getStatus() {
+        return status;
+    }
 
+    public void setStatus(String status) {
+        this.status = status;
+    }
 }

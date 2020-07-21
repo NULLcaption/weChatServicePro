@@ -10,8 +10,19 @@
       UPDATE MARKET.MARKET_TB_PROMOTION_INFO t SET t.PIC_G=#{picG} WHERE t.OPEN_ID=#{openId}
     </update>
 
-    <select id="getPromotionInfoByOpenId" parameterType="java.lang.String" resultType="java.lang.Integer">
-        SELECT count(t.OPEN_ID) FROM MARKET.MARKET_TB_PROMOTION_INFO t WHERE t.OPEN_ID=#{openId}
+    <select id="getPromotionInfoByOpenId" parameterType="java.lang.String" resultType="com.cxg.weChat.crm.pojo.PromotionInfoDo">
+        SELECT t.ID        id,
+               t.OPEN_ID   openId,
+               t.USER_NAME userName,
+               t.SEX       sex,
+               t.MOBILE    mobile,
+               t.ID_CARD   idCard,
+               t.USER_ROLE userRole,
+               t.pic_g     picG,
+               t.pic_h     picH,
+               t.STATUS    status
+        FROM MARKET.MARKET_TB_PROMOTION_INFO t
+        WHERE t.OPEN_ID=#{openId}
     </select>
 
     <select id="getPromotionInfo" parameterType="java.lang.String" resultType="com.cxg.weChat.crm.pojo.PromotionInfoDo">
@@ -21,20 +32,23 @@
                 t.SEX sex,
                 t.MOBILE mobile,
                 t.ID_CARD idCard,
-                t.USER_ROLE userRole
+                t.USER_ROLE userRole,
+                t.pic_g     picG,
+                t.pic_h     picH,
+                t.STATUS    status
         FROM MARKET.MARKET_TB_PROMOTION_INFO t WHERE t.OPEN_ID=#{openId}
     </select>
 
     <select id="getStoreByOpenId" parameterType="java.lang.String" resultType="com.cxg.weChat.crm.pojo.StoreDo">
         SELECT  t.ID id,
-                t.CREATE_DATE ,
-                t.CUST_ID custId,
-                t.CUST_NAME custName,
-                t.KUNNR_ID kunnrId,
-                t.PLAN_DATE planDate,
-                t.PLAN_TITLE planTitle,
-                t.RAND_NUM randNum,
-                t.SAF_CODE safCode
+               t.CREATE_DATE,
+               t.CUST_ID custId,
+               t.CUST_NAME custName,
+               t.KUNNR kunnrId,
+               t.START_DATE||'-'||t.END_DATE planDate,
+               t.MEN_DDZ planTitle,
+               t.RAND_NUM randNum,
+               t.SAF_CODE safCode
         FROM MARKET.MARKET_TB_STORE t
         LEFT JOIN MARKET.MARKET_TB_PROMOTION_STORE p ON t.ID = p.store_id
         WHERE p.OPENID=#{openId} AND p.STATUS='Y'
@@ -46,7 +60,7 @@
                 t.CUST_ID custId,
                 t.CUST_NAME custName,
                 t.KUNNR_ID kunnrId,
-                t.PLAN_DATE planDate,
+                t.START_DATE||'-'||t.END_DATE planDate,
                 t.PLAN_TITLE planTitle,
                 t.RAND_NUM randNum,
                 t.SAF_CODE safCode
@@ -69,6 +83,7 @@
               t.unit unit
           from market.market_tb_promotion_sku t
          where t.status = 'Y' AND t.BRAND=#{mark}
+         order by t.id
     </select>
 
     <select id="getDistributionData" parameterType="com.cxg.weChat.crm.pojo.PromotionNumDo"

@@ -8,13 +8,14 @@ import com.cxg.weChat.core.utils.*;
 import com.cxg.weChat.crm.pojo.*;
 import com.cxg.weChat.crm.service.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.stereotype.Controller;
+import org.springframework.util.StringUtils;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -22,6 +23,8 @@ import org.springframework.web.bind.annotation.ResponseBody;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpSession;
+import javax.validation.constraints.NotBlank;
+import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -37,6 +40,7 @@ import java.util.concurrent.TimeUnit;
 
 @Controller
 @RequestMapping("/api/wx/pro")
+@Validated
 public class WeChatPromotionController {
     private static Logger logger = LoggerFactory.getLogger(WeChatPromotionController.class);
 
@@ -75,6 +79,7 @@ public class WeChatPromotionController {
 
     @Autowired
     ValueOperations<String, Object> valueOperations;
+
 
     /**
      * @Description: 通过java后台获取微信的相关的信息
@@ -125,12 +130,15 @@ public class WeChatPromotionController {
      */
     @PostMapping("/submitInfo")
     @ResponseBody
-    public R insertPromotionInfo(String openId, String userName,
+    public R insertPromotionInfo(@NotBlank(message = "openId不能为空")String openId,
+                                 String userName,
                                  String sex, String mobile,
                                  String idCard, String role,
                                  String nickName, String avatarUrl) {
-        int count = planActivitySrevice.getPromotionInfoByOpenId(openId);
-        if (count == 0) {
+        //先根据openID判断下是不是已经注册过了
+        PromotionInfoDo promotionInfoDo1 = planActivitySrevice.getPromotionInfoByOpenId(openId);
+        //没有注册，那么久保存注册信息
+        if (promotionInfoDo1 == null) {
             PromotionInfoDo promotionInfoDo = new PromotionInfoDo();
             promotionInfoDo.setOpenId(openId);
             promotionInfoDo.setUserName(userName);
@@ -141,6 +149,7 @@ public class WeChatPromotionController {
             promotionInfoDo.setNickName(nickName);
             promotionInfoDo.setAvatarUrl(avatarUrl);
             promotionInfoDo.setCreateDate(DateUtils.dateToStr(new Date()));
+            promotionInfoDo.setStatus("Y");
             //保存至数据库
             PoolSendDataUtil poolSendDataUtil = new PoolSendDataUtil();
             poolSendDataUtil.send(() -> promotionInfoService.save(promotionInfoDo));
@@ -159,7 +168,9 @@ public class WeChatPromotionController {
      */
     @PostMapping("/idCardZ")
     @ResponseBody
-    public R uploadIdCardZ(HttpServletRequest request, String openId, String index) {
+    public R uploadIdCardZ(HttpServletRequest request,
+                           @NotBlank(message = "openId不能为空")String openId,
+                           String index) {
         String flagFile = uploadUtils.uploadImageFiles(request, openId, index);
         if (flagFile.equals("error")) {
             return R.error();
@@ -185,7 +196,10 @@ public class WeChatPromotionController {
      */
     @PostMapping("/idCardF")
     @ResponseBody
-    public R uploadIdCardF(HttpServletRequest request, String openId, String storeId, String index) {
+    public R uploadIdCardF(HttpServletRequest request,
+                           @NotBlank(message = "openId不能为空")String openId,
+                           String storeId,
+                           String index) {
         String flagFile = uploadUtils.uploadImageFiles(request, openId, index);
         if (flagFile.equals("error")) {
             return R.error();
@@ -209,10 +223,20 @@ public class WeChatPromotionController {
      */
     @PostMapping("/check")
     @ResponseBody
-    public R checkPromotionInfo(String openId) {
-        int count = planActivitySrevice.getPromotionInfoByOpenId(openId);
-        if (count == 0) {
+    public R checkPromotionInfo(@NotBlank(message = "openId不能为空")String openId) {
+        PromotionInfoDo promotionInfoDo = planActivitySrevice.getPromotionInfoByOpenId(openId);
+        //检查用户没有注册
+        if (promotionInfoDo == null) {
             return R.error();
+        }
+        //用户注册了，但是强制退出，没有上传身份证照片，需要再次上传
+        if (StringUtils.isEmpty(promotionInfoDo.getPicG()) ||
+                StringUtils.isEmpty(promotionInfoDo.getPicH())) {
+            return R.error(2, "没有上传身份证照片");
+        }
+        //人员离职，没有操作权限
+        if(promotionInfoDo.getStatus().equals("N")) {
+            return R.error(3, "人员离职，没有操作权限");
         }
         return R.ok();
     }
@@ -225,11 +249,15 @@ public class WeChatPromotionController {
      */
     @GetMapping("/getPromotionInfo")
     @ResponseBody
-    public String getPromotionInfo(String openId) {
+    public String getPromotionInfo(@NotBlank(message = "openId不能为空")String openId) {
         //先去redis中找，没有就去数据库中找，然后放到redis中
         PromotionInfoDo promotionInfoDo = (PromotionInfoDo) valueOperations.get("promotionInfoDo_" + openId);
         if (promotionInfoDo == null) {
             promotionInfoDo = planActivitySrevice.getPromotionInfo(openId);
+            //数据库取取出来为空的处理
+            if (promotionInfoDo == null) {
+                return JSONUtils.beanToJson(promotionInfoDo);
+            }
             if (promotionInfoDo.getSex().equals("0")) {
                 promotionInfoDo.setSex("男");
             }
@@ -240,20 +268,20 @@ public class WeChatPromotionController {
                 promotionInfoDo.setSex("女");
             }
             if (promotionInfoDo.getUserRole().equals("0")) {
-                promotionInfoDo.setUserRole("导购");
+                promotionInfoDo.setUserRole("促销员");
             }
             if (promotionInfoDo.getUserRole().equals("1")) {
-                promotionInfoDo.setUserRole("导购");
+                promotionInfoDo.setUserRole("促销员");
             }
             if (promotionInfoDo.getUserRole().equals("1")) {
                 promotionInfoDo.setUserRole("理货员");
             }
             if (promotionInfoDo.getUserRole().equals("2")) {
-                promotionInfoDo.setUserRole("导购督导");
+                promotionInfoDo.setUserRole("督导");
             }
             //将用户用户信息放到redis中
             if (promotionInfoDo != null) {
-                valueOperations.set("promotionInfoDo_" + openId, promotionInfoDo, 7200, TimeUnit.SECONDS);
+                valueOperations.set("promotionInfoDo_" + openId, promotionInfoDo, Constant.KEY_TIME, TimeUnit.SECONDS);
             }
         } else {
             if (promotionInfoDo.getSex().equals("0")) {
@@ -263,13 +291,13 @@ public class WeChatPromotionController {
                 promotionInfoDo.setSex("女");
             }
             if (promotionInfoDo.getUserRole().equals("0")) {
-                promotionInfoDo.setUserRole("导购");
+                promotionInfoDo.setUserRole("促销员");
             }
             if (promotionInfoDo.getUserRole().equals("1")) {
                 promotionInfoDo.setUserRole("理货员");
             }
             if (promotionInfoDo.getUserRole().equals("2")) {
-                promotionInfoDo.setUserRole("导购督导");
+                promotionInfoDo.setUserRole("督导");
             }
         }
         return JSONUtils.beanToJson(promotionInfoDo);
@@ -283,15 +311,15 @@ public class WeChatPromotionController {
      */
     @GetMapping("/getStoreList")
     @ResponseBody
-    public String getStoreList(String openId) {
-        logger.debug("openId+++++>>" + openId);
+    public String getStoreList(@NotBlank(message = "openId不能为空")String openId) throws InterruptedException {
+        //获取门店列表
         List<StoreDo> storeDoList = planActivitySrevice.getStoreByOpenId(openId);
         String json = JSONUtils.beanToJson(storeDoList);
         return json;
     }
 
     /**
-     * 通过生成唯一的获取门店
+     * 通过生成唯一码获取门店
      *
      * @param code
      * @return
@@ -313,7 +341,7 @@ public class WeChatPromotionController {
      */
     @PostMapping("/addStore")
     @ResponseBody
-    public R addStore(String list, String openId) {
+    public R addStore(String list, @NotBlank(message = "openId不能为空")String openId) {
         List<StoreDo> storeDoList = JSON.parseArray(list, StoreDo.class);
         if (storeDoList != null) {
             PromotionStoreDo promotionStoreDo = new PromotionStoreDo();
@@ -325,7 +353,10 @@ public class WeChatPromotionController {
             if (count >= 1) {
                 return R.error(2, "门店已绑定");
             }
-            promotionStoreService.save(promotionStoreDo);
+            //保存绑定门店
+            PoolSendDataUtil poolSendDataUtil = new PoolSendDataUtil();
+            poolSendDataUtil.send(() -> promotionStoreService.save(promotionStoreDo));
+            poolSendDataUtil.close();
         }
         return R.ok();
     }
@@ -339,7 +370,8 @@ public class WeChatPromotionController {
      */
     @GetMapping("/deleteStore")
     @ResponseBody
-    public R deleteStore(String storeId, String openId) {
+    public R deleteStore(@NotBlank(message = "门店Id不能为空")String storeId,
+                         @NotBlank(message = "openId不能为空")String openId) {
         PromotionStoreDo promotionStoreDo = new PromotionStoreDo();
         promotionStoreDo.setOpenId(openId);
         promotionStoreDo.setStoreId(storeId);
@@ -354,7 +386,7 @@ public class WeChatPromotionController {
      * 签到
      *
      * @param address
-     * @param date
+     * @param date 签到时间直接取当前的服务器时间
      * @param openId
      * @param storeId
      * @return
@@ -362,7 +394,9 @@ public class WeChatPromotionController {
     @PostMapping("/signin")
     @ResponseBody
     public R signin(HttpServletRequest request, String address,
-                    String date, String openId, String storeId,
+                    String date,
+                    @NotBlank(message = "openId不能为空")String openId,
+                    @NotBlank(message = "门店Id不能为空")String storeId,
                     String index) {
         String flagFile = uploadUtils.uploadImageFiles(request, openId, index);
         if (flagFile.equals("error")) {
@@ -372,7 +406,7 @@ public class WeChatPromotionController {
             siginDo.setOpenid(openId);
             siginDo.setStoreId(storeId);
             siginDo.setSignInAddress(address);
-            siginDo.setSignInTime(date);
+            siginDo.setSignInTime(DateUtils.dateToStr(new Date()));
             siginDo.setStatus("I");
             siginDo.setPhotoUrl(flagFile);
             //线程异步写入数据库
@@ -391,7 +425,8 @@ public class WeChatPromotionController {
      */
     @GetMapping("/getSignInData")
     @ResponseBody
-    public String getSignInData(HttpServletRequest request, String openId) {
+    public String getSignInData(HttpServletRequest request,
+                                @NotBlank(message = "openId不能为空")String openId) {
         SiginDo siginDo = new SiginDo();
         siginDo.setOpenid(openId);
         List<SiginDo> list = planActivitySrevice.getSignInData(siginDo);
@@ -415,7 +450,9 @@ public class WeChatPromotionController {
     @PostMapping("/signout")
     @ResponseBody
     public R signout(HttpServletRequest request, String address,
-                     String date, String openId, String storeId,
+                     String date,
+                     @NotBlank(message = "openId不能为空")String openId,
+                     @NotBlank(message = "门店Id不能为空")String storeId,
                      String index) {
         String flagFile = uploadUtils.uploadImageFiles(request, openId, index);
         if (flagFile.equals("error")) {
@@ -425,7 +462,7 @@ public class WeChatPromotionController {
             siginDo.setOpenid(openId);
             siginDo.setStoreId(storeId);
             siginDo.setSignInAddress(address);
-            siginDo.setSignInTime(date);
+            siginDo.setSignInTime(DateUtils.dateToStr(new Date()));
             siginDo.setStatus("O");
             siginDo.setPhotoUrl(flagFile);
             //线程异步写入数据库
@@ -444,7 +481,8 @@ public class WeChatPromotionController {
      */
     @GetMapping("/getSignOutData")
     @ResponseBody
-    public String getSignOutData(HttpServletRequest request, String openId) {
+    public String getSignOutData(HttpServletRequest request,
+                                 @NotBlank(message = "openId不能为空")String openId) {
         SiginDo siginDo = new SiginDo();
         siginDo.setOpenid(openId);
         List<SiginDo> list = planActivitySrevice.getSignOutData(siginDo);
@@ -472,14 +510,14 @@ public class WeChatPromotionController {
             skuDos = (String) valueOperations.get("skuDoListZ");
             if (skuDos == null) {
                 List<SkuDo> skuDoList = planActivitySrevice.getSkuList(mark);
-                valueOperations.set("skuDoListZ", JSONUtils.beanToJson(skuDoList), 7200, TimeUnit.SECONDS);
+                valueOperations.set("skuDoListZ", JSONUtils.beanToJson(skuDoList), Constant.KEY_TIME, TimeUnit.SECONDS);
                 return JSONUtils.beanToJson(skuDoList);
             }
         } else {//销售产品
             skuDos = (String) valueOperations.get("skuDoList");
             if (skuDos == null) {
                 List<SkuDo> skuDoList = planActivitySrevice.getSkuList(mark);
-                valueOperations.set("skuDoList", JSONUtils.beanToJson(skuDoList), 7200, TimeUnit.SECONDS);
+                valueOperations.set("skuDoList", JSONUtils.beanToJson(skuDoList), Constant.KEY_TIME, TimeUnit.SECONDS);
                 return JSONUtils.beanToJson(skuDoList);
             }
         }
@@ -496,10 +534,12 @@ public class WeChatPromotionController {
      */
     @PostMapping("/subDistribution")
     @ResponseBody
-    public R subDistribution(String openId, String storeId, String list) {
+    public R subDistribution(@NotBlank(message = "openId不能为空")String openId,
+                             @NotBlank(message = "门店Id不能为空")String storeId,
+                             String list, String dates) {
         //这里去更新数据库的时候可以使用多线程的方式异步的去提交
         PoolSendDataUtil poolSendDataUtil = new PoolSendDataUtil();
-        poolSendDataUtil.send(() -> saveDistribution(openId, storeId, list));
+        poolSendDataUtil.send(() -> saveDistribution(openId, storeId, list, dates));
         poolSendDataUtil.close();
         return R.ok();
     }
@@ -507,11 +547,14 @@ public class WeChatPromotionController {
     /**
      * 保存数据库
      *
-     * @param openId
-     * @param storeId
-     * @param list
+     * @param openId 人员Id
+     * @param storeId 门店Id
+     * @param list 提报SKU
+     * @param dates 提报时间
      */
-    private void saveDistribution(String openId, String storeId, String list) {
+    private void saveDistribution(@NotBlank(message = "openId不能为空")String openId,
+                                  @NotBlank(message = "门店Id不能为空")String storeId,
+                                  String list, String dates) {
         List<SkuDo> skuDoList = JSON.parseArray(list, SkuDo.class);
         List<PromotionNumDo> promotionNumDos = new ArrayList<>();
         for (SkuDo skuDo : skuDoList) {
@@ -519,12 +562,12 @@ public class WeChatPromotionController {
             promotionNumDo.setOpenid(openId);
             promotionNumDo.setStoreId(storeId);
             promotionNumDo.setSkuId(String.valueOf(skuDo.getId()));
-            if (skuDo.getNum() == null) {//提报数量为空空时break
+            if (skuDo.getNum() == null || StringUtils.isEmpty(skuDo.getNum().trim())) {
                 continue;
             }
             promotionNumDo.setNum(skuDo.getNum());
             promotionNumDo.setUnit(skuDo.getUnit());
-            promotionNumDo.setSubDate(DateUtils.dateToStrYYYYMMDD(new Date()));
+            promotionNumDo.setSubDate(dates);
             promotionNumDo.setCreateDate(DateUtils.dateToStr(new Date()));
             //一个人一个门店一天只能提报一次，其余为修改
             int count = planActivitySrevice.getDistributionCount(promotionNumDo);
@@ -546,7 +589,8 @@ public class WeChatPromotionController {
      */
     @GetMapping("/getDistributionData")
     @ResponseBody
-    public String getDistributionData(String openId, String storeId) {
+    public String getDistributionData(@NotBlank(message = "openId不能为空")String openId,
+                                      @NotBlank(message = "门店Id不能为空")String storeId) {
         PromotionNumDo promotionNumDo = new PromotionNumDo();
         promotionNumDo.setOpenid(openId);
         promotionNumDo.setStoreId(storeId);
@@ -564,10 +608,12 @@ public class WeChatPromotionController {
      */
     @PostMapping("/subInventory")
     @ResponseBody
-    public R subInventory(String openId, String storeId, String list) {
+    public R subInventory(@NotBlank(message = "openId不能为空")String openId,
+                          @NotBlank(message = "门店Id不能为空")String storeId,
+                          String list, String dates) {
         //这里去更新数据库的时候可以使用多线程的方式异步的去提交
         PoolSendDataUtil poolSendDataUtil = new PoolSendDataUtil();
-        poolSendDataUtil.send(() -> saveInventory(openId, storeId, list));
+        poolSendDataUtil.send(() -> saveInventory(openId, storeId, list, dates));
         poolSendDataUtil.close();
         return R.ok();
     }
@@ -579,7 +625,7 @@ public class WeChatPromotionController {
      * @param storeId
      * @param list
      */
-    private void saveInventory(String openId, String storeId, String list) {
+    private void saveInventory(String openId, String storeId, String list, String dates) {
         List<SkuDo> skuDoList = JSON.parseArray(list, SkuDo.class);
         List<PromotionNumKDo> promotionNumKDos = new ArrayList<>();
         for (SkuDo skuDo : skuDoList) {
@@ -587,12 +633,12 @@ public class WeChatPromotionController {
             promotionNumKDo.setOpenid(openId);
             promotionNumKDo.setStoreId(storeId);
             promotionNumKDo.setSkuId(String.valueOf(skuDo.getId()));
-            if (skuDo.getNum() == null) {//提报数量为空空时break
+            if (skuDo.getNum() == null || StringUtils.isEmpty(skuDo.getNum().trim())) {
                 continue;
             }
             promotionNumKDo.setNum(skuDo.getNum());
             promotionNumKDo.setUnit(skuDo.getUnit());
-            promotionNumKDo.setSubDate(DateUtils.dateToStrYYYYMMDD(new Date()));
+            promotionNumKDo.setSubDate(dates);
             promotionNumKDo.setCreateDate(DateUtils.dateToStr(new Date()));
             //一个人一个门店一个品项一天只能提报一次，其余为修改
             int count = planActivitySrevice.getInventoryCount(promotionNumKDo);
@@ -613,7 +659,8 @@ public class WeChatPromotionController {
      */
     @GetMapping("/getInventoryData")
     @ResponseBody
-    public String getInventoryData(String openId, String storeId) {
+    public String getInventoryData(@NotBlank(message = "openId不能为空")String openId,
+                                   @NotBlank(message = "门店Id不能为空")String storeId) {
         PromotionNumKDo promotionNumKDo = new PromotionNumKDo();
         promotionNumKDo.setOpenid(openId);
         promotionNumKDo.setStoreId(storeId);
@@ -632,10 +679,12 @@ public class WeChatPromotionController {
      */
     @PostMapping("/subComplimentary")
     @ResponseBody
-    public R subComplimentary(String openId, String storeId, String list) {
+    public R subComplimentary(@NotBlank(message = "openId不能为空")String openId,
+                              @NotBlank(message = "门店Id不能为空")String storeId,
+                              String list, String dates) {
         //这里去更新数据库的时候可以使用多线程的方式异步的去提交
         PoolSendDataUtil poolSendDataUtil = new PoolSendDataUtil();
-        poolSendDataUtil.send(() -> saveComplimentary(openId, storeId, list));
+        poolSendDataUtil.send(() -> saveComplimentary(openId, storeId, list, dates));
         poolSendDataUtil.close();
         return R.ok();
     }
@@ -647,7 +696,9 @@ public class WeChatPromotionController {
      * @param storeId
      * @param list
      */
-    private void saveComplimentary(String openId, String storeId, String list) {
+    private void saveComplimentary(@NotBlank(message = "openId不能为空")String openId,
+                                   @NotBlank(message = "门店Id不能为空")String storeId,
+                                   String list, String dates) {
         List<SkuDo> skuDoList = JSON.parseArray(list, SkuDo.class);
         List<PromotionNumZDo> promotionNumZDos = new ArrayList<>();
         for (SkuDo skuDo : skuDoList) {
@@ -655,12 +706,12 @@ public class WeChatPromotionController {
             promotionNumZDo.setOpenid(openId);
             promotionNumZDo.setStoreId(storeId);
             promotionNumZDo.setSkuId(String.valueOf(skuDo.getId()));
-            if (skuDo.getNum() == null) {//提报数量为空空时break
+            if (skuDo.getNum() == null || StringUtils.isEmpty(skuDo.getNum().trim())) {
                 continue;
             }
             promotionNumZDo.setNum(skuDo.getNum());
             promotionNumZDo.setUnit(skuDo.getUnit());
-            promotionNumZDo.setSubDate(DateUtils.dateToStrYYYYMMDD(new Date()));
+            promotionNumZDo.setSubDate(dates);
             promotionNumZDo.setCreateDate(DateUtils.dateToStr(new Date()));
             //一个人一个门店一天只能提报一次，其余为修改
             int count = planActivitySrevice.getComplimentaryCount(promotionNumZDo);
@@ -682,7 +733,8 @@ public class WeChatPromotionController {
      */
     @GetMapping("/getCompData")
     @ResponseBody
-    public String getCompData(String openId, String storeId) {
+    public String getCompData(@NotBlank(message = "openId不能为空")String openId,
+                              @NotBlank(message = "门店Id不能为空")String storeId) {
         PromotionNumZDo promotionNumZDo = new PromotionNumZDo();
         promotionNumZDo.setOpenid(openId);
         promotionNumZDo.setStoreId(storeId);
@@ -700,7 +752,8 @@ public class WeChatPromotionController {
      */
     @PostMapping("/upload")
     @ResponseBody
-    public R upload(HttpServletRequest request, String openId, String storeId, String index) {
+    public R upload(HttpServletRequest request,@NotBlank(message = "openId不能为空")String openId,
+                    @NotBlank(message = "门店Id不能为空")String storeId, String index) {
         String flagFile = uploadUtils.uploadImageFiles(request, openId, index);
         if (flagFile.equals("error")) {
             return R.error();
@@ -727,7 +780,8 @@ public class WeChatPromotionController {
      */
     @GetMapping("/getPhotoData")
     @ResponseBody
-    public String getPhotoData(HttpServletRequest request, String openId, String storeId) {
+    public String getPhotoData(HttpServletRequest request, @NotBlank(message = "openId不能为空")String openId,
+                               @NotBlank(message = "门店Id不能为空")String storeId) {
         PromotionStorePhotoDo promotionStorePhotoDo = new PromotionStorePhotoDo();
         promotionStorePhotoDo.setOpenid(openId);
         promotionStorePhotoDo.setStoreId(storeId);
@@ -739,4 +793,52 @@ public class WeChatPromotionController {
         }
         return JSONUtils.beanToJson(promotionStorePhotoDoList);
     }
+
+    /**
+     * 促销员扫码活动
+     *
+     * @param openId 获取促销员的信息
+     * @return
+     */
+    @GetMapping("/redPacket")
+    @ResponseBody
+    public String promoterPlan(@NotBlank(message = "openId不能为空")String openId) throws Exception {
+        if(openId.equals("null") || openId.equals("") || openId.equals("undefined")){
+            return "1";
+        }
+        //通过openid获取促销员信息
+        //先去redis中找，没有就去数据库中找，然后放到redis中
+        PromotionInfoDo promotionInfoDo = (PromotionInfoDo) valueOperations.get("promotionInfoDo_" + openId);
+        if (promotionInfoDo == null) {
+            promotionInfoDo = planActivitySrevice.getPromotionInfo(openId);
+        }
+        //保证缓存和数据中获取的对象都不为空
+        if(promotionInfoDo !=  null){
+            //用户注册了，但是强制退出，没有上传身份证照片，需要再次上传
+            if (StringUtils.isEmpty(promotionInfoDo.getPicG()) ||
+                    StringUtils.isEmpty(promotionInfoDo.getPicH())) {
+                return "2";
+            }
+            //人员离职，没有操作权限
+            if(promotionInfoDo.getStatus().equals("N")) {
+                return "3";
+            }
+            //生成二维码接口参数
+            Long id = promotionInfoDo.getId();//人员ID
+            String name = promotionInfoDo.getUserName();//姓名
+            Long time = System.currentTimeMillis();//时间戳
+            String secret = EncryptUtil.getAESString(String.valueOf(id) + String.valueOf(time));//加密字串
+            //请求API接口参数
+            //https://xpp.happydoit.com/api/promoter?id=1&name=2&time=666666&secret=gCrh4C7iPLI=
+            String url = "https://xpp.happydoit.com/api/promoter"
+                    +"?id="+ id
+                    +"&name="+name
+                    +"&time="+time
+                    +"&secret="+secret;
+            logger.error("HttpRestful url:" + url);
+            return url;
+        }
+        return "1";
+    }
+
 }

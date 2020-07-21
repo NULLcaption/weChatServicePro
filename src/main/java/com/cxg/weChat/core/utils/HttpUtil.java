@@ -1,11 +1,24 @@
 package com.cxg.weChat.core.utils;
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+
+import java.io.*;
 import java.net.URI;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSession;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.security.SecureRandom;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
 
 import org.apache.http.HttpResponse;
 import org.apache.http.NameValuePair;
@@ -16,6 +29,9 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.message.BasicNameValuePair;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /**
 * @Description:    封装http请求
 * @Author:         Cheney Master
@@ -23,6 +39,8 @@ import org.apache.http.message.BasicNameValuePair;
 * @Version:        1.0
 */
 public class HttpUtil {
+
+    private static Logger logger = LoggerFactory.getLogger(HttpUtil.class);
 
     private static final String Charset = "utf-8";
     /**
@@ -164,6 +182,78 @@ public class HttpUtil {
             e.printStackTrace();
         }
         return null;
+    }
 
+    /**
+     * @Description:请求接口并返回参数
+     * @author xg.chen
+     * @date:2019年3月20日 上午8:06:12
+     * @param path
+     * @param data
+     * @return
+     * @throws IOException
+     * @throws KeyManagementException
+     * @throws NoSuchAlgorithmException
+     * @version:1.0
+     */
+    public static String HttpRestful(String path, String data) throws IOException,
+            KeyManagementException, NoSuchAlgorithmException {
+        // 请求https
+        HttpsURLConnection
+                .setDefaultHostnameVerifier(new HttpUtil().new NullHostNameVerifier());
+        SSLContext sc = SSLContext.getInstance("SSL");//TLS
+        sc.init(null, trustAllCerts, new SecureRandom());
+        HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+        URL url = new URL(path+data);
+        // 打开restful链接
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        // 参数设置
+        conn.setDoOutput(true); // 需要输出
+        conn.setDoInput(true); // 需要输入
+        conn.setUseCaches(false); // 不允许缓存
+        conn.setRequestMethod("GET");// POST GET PUT DELETE
+        // 设置访问提交模式，表单提交
+        conn.setRequestProperty("Content-Type",
+                "application/x-www-form-urlencoded;charset=utf-8");
+        conn.setConnectTimeout(130000);// 连接超时 单位毫秒
+        conn.setReadTimeout(130000);// 读取超时 单位毫秒
+
+        //POST请求时参数处理
+//        DataOutputStream dos = new DataOutputStream(conn.getOutputStream());
+//        dos.writeBytes(data);
+//        dos.flush();
+//        dos.close();
+
+        // 读取请求返回值
+        byte bytes[] = new byte[1024];
+        logger.debug("ResponseCode:"+String.valueOf(conn.getResponseCode()));
+        logger.debug("ResponseMessage:"+String.valueOf(conn.getResponseMessage()));
+        InputStream inStream = conn.getInputStream();
+        inStream.read(bytes, 0, inStream.available());
+        return new String(bytes, "utf-8");
+    }
+
+    static TrustManager[] trustAllCerts = new TrustManager[] { new X509TrustManager() {
+        @Override
+        public void checkClientTrusted(X509Certificate[] chain, String authType)
+                throws CertificateException {
+        }
+
+        @Override
+        public void checkServerTrusted(X509Certificate[] chain, String authType)
+                throws CertificateException {
+        }
+
+        @Override
+        public X509Certificate[] getAcceptedIssuers() {
+            return null;
+        }
+    } };
+
+    public class NullHostNameVerifier implements HostnameVerifier {
+        @Override
+        public boolean verify(String arg0, SSLSession arg1) {
+            return true;
+        }
     }
 }

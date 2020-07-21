@@ -47,13 +47,13 @@ public class PlanActivitySreviceImpl implements PlanActivitySrevice{
     }
 
     @Override
-    public int getPromotionInfoByOpenId(String openId) {
+    public PromotionInfoDo getPromotionInfoByOpenId(String openId) {
         try{
             return planActivityMapper.getPromotionInfoByOpenId(openId);
         }catch (Exception e){
             e.printStackTrace();
         }
-        return 0;
+        return null;
     }
 
     @Override

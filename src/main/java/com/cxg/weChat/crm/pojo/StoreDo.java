@@ -35,6 +35,10 @@ public class StoreDo implements Serializable{
     private String randNum;
     @Column(name = "CREATE_DATE")
     private String createDate;//创建时间
+    @Column(name = "start_date")
+    private String startDate;
+    @Column(name = "end_date")
+    private String endDate;
 
     public Long getId() {
         return id;
@@ -108,6 +112,22 @@ public class StoreDo implements Serializable{
         this.createDate = createDate;
     }
 
+    public String getStartDate() {
+        return startDate;
+    }
+
+    public void setStartDate(String startDate) {
+        this.startDate = startDate;
+    }
+
+    public String getEndDate() {
+        return endDate;
+    }
+
+    public void setEndDate(String endDate) {
+        this.endDate = endDate;
+    }
+
     @Override
     public String toString() {
         return "StoreDo{" +
@@ -120,6 +140,8 @@ public class StoreDo implements Serializable{
                 ", planDate='" + planDate + '\'' +
                 ", randNum='" + randNum + '\'' +
                 ", createDate='" + createDate + '\'' +
+                ", startDate='" + startDate + '\'' +
+                ", endDate='" + endDate + '\'' +
                 '}';
     }
 }

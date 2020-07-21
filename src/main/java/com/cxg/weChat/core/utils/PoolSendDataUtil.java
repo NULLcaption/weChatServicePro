@@ -31,6 +31,7 @@ public class PoolSendDataUtil {
     }
     //关闭线程池
     public void close(){
+        logger.debug("Runnable task close...");
         executorService.shutdown();
     }
 }

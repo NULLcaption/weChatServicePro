@@ -18,7 +18,7 @@ public interface PlanActivitySrevice {
 
     int updateIdCardF(PromotionInfoDo promotionInfoDo);
 
-    int getPromotionInfoByOpenId(String openId);
+    PromotionInfoDo getPromotionInfoByOpenId(String openId);
 
     List<StoreDo> getStoreByOpenId(String openId);
 
