@@ -22,17 +22,17 @@ public class Constant {
     public static String grant_type = "authorization_code";
     public static String requestUrl = "https://api.weixin.qq.com/sns/jscode2session";
     //兰芳园
-    public static String appid_l = "wx1fd2c4c28ce04e0c";
-    public static String appSercret_l = "e0961cb93e2bd49f1d22df99ca7ff5e0";
+    public static String appid_l = "";
+    public static String appSercret_l = "";
     //香飘飘
-    public static String appid_x = "wx3ef893bc1a84ce86";
-    public static String appSercret_x = "9eb0de8457e901eb50b7cc19a2d1a20a";
+    public static String appid_x = "";
+    public static String appSercret_x = "";
     //meco
-    public static String appid_m = "wxd570425c5356eaa9";
-    public static String appSercret_m = "e603222292b9f719c720ebb898870e30";
+    public static String appid_m = "";
+    public static String appSercret_m = "";
     //促销小程序
-    public static String appid_c = "wx3000fc33df12fa16";
-    public static String appSercret_c = "46ec9eacabb9f4048cd050cc1f23fac8";
+    public static String appid_c = "";
+    public static String appSercret_c = "";
 
 
     public static String upload_url = "/var/uploaded_files/promotion";
